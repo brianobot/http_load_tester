@@ -2,5 +2,7 @@
 name = "http_load_tester"
 version = "0.1.0"
 edition = "2024"
+authors = ["Brian Obot <brianobot9@gmail.com>"]
 
 [dependencies]
+tokio = { version = "1.52.3", features = ["full"] }
