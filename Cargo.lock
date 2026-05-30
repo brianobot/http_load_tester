@@ -858,6 +858,7 @@ dependencies = [
  "color-eyre",
  "ratatui",
  "reqwest",
+ "serde_json",
  "tokio",
 ]
 
