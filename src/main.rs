@@ -1,132 +1,159 @@
-#![allow(unused_imports)]
+#![allow(unused)]
 
-use clap::Parser;
 use ratatui::{
-    DefaultTerminal, Frame,
+    DefaultTerminal, Frame, Terminal,
     crossterm::{
         self,
-        event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+        event::{self, Event, KeyCode, KeyEventKind},
     },
-    style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
 };
+use std::{collections::HashMap, io};
 
-use color_eyre::{
-    Result,
-    eyre::{WrapErr, bail},
-};
-
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    #[arg(short, long, default_value = "http://localhost:3004/health")]
-    url: String,
-
-    #[arg(short, long, default_value = "20k")]
-    load: String,
-
-    #[arg(short, long, default_value = "2m")]
-    duration: String,
+enum CurrentScreen {
+    Main,
+    Editing,
+    Exiting,
 }
 
-#[derive(Debug, Default)]
+enum CurrentlyEditing {
+    Key,
+    Value,
+}
+
 struct App {
-    counter: u8,
-    exit: bool,
+    key_input: String,
+    value_input: String,
+    pairs: HashMap<String, String>,
+    current_screen: CurrentScreen,
+    currently_editing: Option<CurrentlyEditing>,
 }
 
 impl App {
-    fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        while !self.exit {
-            terminal.draw(|frame| self.draw(frame))?;
-            self.handle_events().wrap_err("handled events failed")?;
-        }
-
-        Ok(())
-    }
-
-    fn draw(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
-    }
-
-    fn handle_events(&mut self) -> Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self
-                .handle_key_event(key_event)
-                .wrap_err_with(|| format!("handling key event failed\n{key_event:#?}")),
-            _ => Ok(()),
+    fn new() -> App {
+        App {
+            key_input: String::new(),
+            value_input: String::new(),
+            pairs: HashMap::new(),
+            current_screen: CurrentScreen::Main,
+            currently_editing: None,
         }
     }
 
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decrement_counter()?,
-            KeyCode::Right => self.increment_counter()?,
-            _ => {}
+    fn save_key_value(&mut self) {
+        self.pairs
+            .insert(self.key_input.clone(), self.value_input.clone());
+
+        self.key_input = String::new();
+        self.value_input = String::new();
+        self.currently_editing = None;
+    }
+
+    fn toggle_editing(&mut self) {
+        if let Some(edit_mode) = &self.currently_editing {
+            match edit_mode {
+                CurrentlyEditing::Key => self.currently_editing = Some(CurrentlyEditing::Value),
+                CurrentlyEditing::Value => self.currently_editing = Some(CurrentlyEditing::Key),
+            }
+        } else {
+            self.currently_editing = Some(CurrentlyEditing::Key);
         }
-
-        Ok(())
     }
 
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-
-    fn decrement_counter(&mut self) -> Result<()> {
-        self.counter -= 1;
-        Ok(())
-    }
-
-    fn increment_counter(&mut self) -> Result<()> {
-        self.counter += 1;
-        if self.counter > 4 {
-            bail!("counter overflow");
-        }
+    fn print_json(&self) -> serde_json::Result<()> {
+        let output = serde_json::to_string(&self.pairs)?;
+        println!("{output}");
         Ok(())
     }
 }
 
-impl Widget for &App {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        let title = Line::from(" Counter App Tutorial ".bold());
-        let instructions = Line::from(vec![
-            " Decrement ".into(),
-            " <Left> ".blue().bold(),
-            " Increment ".into(),
-            " <Right> ".blue().bold(),
-            " Quit ".into(),
-            " <Q> ".blue().bold(),
-        ]);
-
-        let block = Block::bordered()
-            .title(title.centered())
-            .title_bottom(instructions.centered())
-            .border_set(border::THICK);
-
-        let counter_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
-            self.counter.to_string().yellow(),
-        ])]);
-
-        Paragraph::new(counter_text)
-            .centered()
-            .block(block)
-            .render(area, buf);
-    }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    color_eyre::install()?;
-
+fn main() {
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+
+    let mut app = App::new();
+    let _res = run_app(&mut terminal, &mut app);
+
     ratatui::restore();
-    app_result
 }
+
+fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<bool> {
+    loop {
+        if let Event::Key(key) = event::read()? {
+            if key.kind == event::KeyEventKind::Release {
+                continue;
+            }
+
+            match app.current_screen {
+                CurrentScreen::Main => match key.code {
+                    KeyCode::Char('e') => {
+                        app.current_screen = CurrentScreen::Editing;
+                        app.currently_editing = Some(CurrentlyEditing::Key)
+                    }
+                    KeyCode::Char('q') => {
+                        app.current_screen = CurrentScreen::Exiting;
+                    }
+                    _ => {}
+                },
+                CurrentScreen::Editing if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Enter => {
+                        if let Some(editing) = &app.currently_editing {
+                            match editing {
+                                CurrentlyEditing::Key => {
+                                    app.currently_editing = Some(CurrentlyEditing::Value);
+                                }
+                                CurrentlyEditing::Value => {
+                                    app.save_key_value();
+                                    app.current_screen = CurrentScreen::Main;
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Backspace => {
+                        if let Some(editing) = &app.currently_editing {
+                            match editing {
+                                CurrentlyEditing::Key => {
+                                    app.key_input.pop();
+                                }
+                                CurrentlyEditing::Value => {
+                                    app.value_input.pop();
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Esc => {
+                        app.current_screen = CurrentScreen::Main;
+                        app.currently_editing = None;
+                    }
+                    KeyCode::Tab => {
+                        app.toggle_editing();
+                    }
+                    KeyCode::Char(character) => {
+                        if let Some(editing) = &app.currently_editing {
+                            match editing {
+                                CurrentlyEditing::Key => {
+                                    app.key_input.push(character);
+                                }
+                                CurrentlyEditing::Value => {
+                                    app.value_input.push(character);
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                CurrentScreen::Exiting => match key.code {
+                    KeyCode::Char('y') => {
+                        return Ok(true);
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('q') => {
+                        return Ok(false);
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        terminal.draw(|frame| ui(frame, app)).unwrap();
+    }
+}
+
+fn ui(frame: &mut Frame, app: &App) {}
