@@ -190,7 +190,7 @@ fn ui(frame: &mut Frame, app: &App) {
         "Create New Json",
         Style::default().fg(Color::Green),
     ))
-    .block(title_block);
+    .block(title_block); // here the title_block is moved into the title widget
 
     frame.render_widget(title.clone(), chunks[0]);
 }
