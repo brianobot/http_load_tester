@@ -183,7 +183,7 @@ fn ui(frame: &mut Frame, app: &App) {
      */
 
     let title_block = Block::default()
-        .borders(Borders::ALL)
+        .borders(Borders::LEFT)
         .style(Style::default());
 
     let title = Paragraph::new(Text::styled(
