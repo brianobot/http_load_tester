@@ -6,6 +6,10 @@ use ratatui::{
         self,
         event::{self, Event, KeyCode, KeyEventKind},
     },
+    layout::{Constraint, Layout, Rect},
+    style::{Color, Style},
+    text::Text,
+    widgets::{Block, Borders, Paragraph},
 };
 use std::{collections::HashMap, io};
 
@@ -156,4 +160,57 @@ fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<bool> {
     }
 }
 
-fn ui(frame: &mut Frame, app: &App) {}
+fn ui(frame: &mut Frame, app: &App) {
+    let chunks = Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(3),
+        ])
+        .split(frame.area());
+
+    /*
+     * --------------------
+     * Chunk 0: Length = 3 Char point
+     * ____________________
+     * Chunk 1: Min = 1 Char point
+     * ____________________
+     * Chunk 2: Length = 3 Char point
+     * ____________________
+     *
+     *
+     */
+
+    let title_block = Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default());
+
+    let title = Paragraph::new(Text::styled(
+        "Create New Json",
+        Style::default().fg(Color::Green),
+    ))
+    .block(title_block);
+
+    frame.render_widget(title.clone(), chunks[0]);
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(ratatui::layout::Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
+}
