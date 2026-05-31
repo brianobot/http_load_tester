@@ -206,6 +206,16 @@ fn ui(frame: &mut Frame, app: &App) {
     let list = List::new(list_items);
     frame.render_widget(list, chunks[1]);
 
+    if let Some(editing) = &app.currently_editing {
+        let popup_block = Block::default()
+            .title("Enter a new key-value pair")
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::DarkGray));
+
+        let area = centered_rect(60, 25, frame.area());
+        frame.render_widget(popup_block, area);
+    }
+
     let current_navigation_text = vec![
         match app.current_screen {
             CurrentScreen::Main => Span::styled("Normal Mode", Style::default().fg(Color::Green)),
